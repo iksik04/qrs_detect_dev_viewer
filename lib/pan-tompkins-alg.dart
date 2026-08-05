@@ -3,7 +3,7 @@
 
 class PanTompkinsQRS {
 
-  // Коэффициенты фильтров
+  /*// Коэффициенты фильтров
   late List<double> _bhp;
   late List<double> _ahp;
   late List<double> _blp;
@@ -103,18 +103,86 @@ class PanTompkinsQRS {
     _hprevUnfiltered = val;
     
     return y;
+  }*/
+
+  // Буферы для ФНЧ (нужно 13 отсчётов для x[n-12])
+  final List<double> _lBuffer = [];
+  double _lPrev1 = 0.0;  // y[n-1]
+  double _lPrev2 = 0.0;  // y[n-2]
+
+  // Буферы для ФВЧ (нужно 33 отсчёта для x[n-32])
+  final List<double> _hBuffer = [];
+  double _hPrev1 = 0.0;  // y[n-1]
+
+  double _sampleRate = 250.0;
+
+  PanTompkinsQRS({double sampleRate = 250.0}) {
+    _sampleRate = sampleRate;
   }
+
+  void reset() {
+    _lBuffer.clear();
+    _lPrev1 = 0.0;
+    _lPrev2 = 0.0;
+    _hBuffer.clear();
+    _hPrev1 = 0.0;
+  }
+
+  /// ФНЧ: y[n] = 2*y[n-1] - y[n-2] + x[n] - 2*x[n-6] + x[n-12]
+  double _applyLowPassFilter(double val) {
+    _lBuffer.add(val);
+    if (_lBuffer.length > 13) _lBuffer.removeAt(0);
+
+    double xn = _lBuffer[_lBuffer.length - 1];
+    double xn6 = (_lBuffer.length - 7 >= 0) ? _lBuffer[_lBuffer.length - 7] : 0.0;
+    double xn12 = (_lBuffer.length - 13 >= 0) ? _lBuffer[_lBuffer.length - 13] : 0.0;
+
+    double y = 2.0 * _lPrev1 - _lPrev2 + xn - 2.0 * xn6 + xn12;
+
+    _lPrev2 = _lPrev1;
+    _lPrev1 = y;
+    return y;
+  }
+
+  /// ФВЧ: y[n] = 32*x[n-16] - y[n-1] - x[n] + x[n-32]
+  double _applyHighPassFilter(double val) {
+    _hBuffer.add(val);
+    if (_hBuffer.length > 33) _hBuffer.removeAt(0);
+
+    double xn = _hBuffer[_hBuffer.length - 1];
+    double xn16 = (_hBuffer.length - 17 >= 0) ? _hBuffer[_hBuffer.length - 17] : 0.0;
+    double xn32 = (_hBuffer.length - 33 >= 0) ? _hBuffer[_hBuffer.length - 33] : 0.0;
+
+    double y = 32.0 * xn16 - _hPrev1 - xn + xn32;
+
+    _hPrev1 = y;
+    return y;
+  }
+
   // Дифференцирование
   List<double> derivative(List<double> signal, double fs) {
-    List<double> result = List.filled(signal.length, 0.0);
+    List<double> result = <double>[
+      for (double i = 0; i < signal.length; i++) i
+    ];
 
     for (int index = 0; index < signal.length; index++) {
       result[index] = 0;
 
-      if (index >= 2) result[index] -= signal[index - 2];
-      if (index >= 1) result[index] -= 2 * signal[index - 1];
-      if (index < signal.length - 2) result[index] += 2 * signal[index + 1];
-      if (index < signal.length - 3) result[index] += signal[index + 2];
+      if (index >= 1) {
+        result[index] -= 2 * signal[index - 1];
+      }
+
+      if (index >= 2) {
+        result[index] -= signal[index - 2];
+      }
+
+      if (index >= 2 && index <= signal.length - 2) {
+        result[index] += 2 * signal[index + 1];
+      }
+
+      if (index >= 2 && index <= signal.length - 3) {
+        result[index] += signal[index + 2];
+      }
 
       result[index] = (result[index] * fs) / 8;
     }
@@ -124,9 +192,9 @@ class PanTompkinsQRS {
   /// Основной метод обработки сигнала (экземплярный)
   List<double> process(List<double> signal) {
     if (signal.isEmpty) return [];
-    
+
     // Пересчитываем коэффициенты (на случай, если частота изменилась)
-    _calculateFilterCoefficients();
+    //_calculateFilterCoefficients();
     
     // Сбрасываем состояние перед обработкой нового сигнала
     reset();
@@ -137,8 +205,8 @@ class PanTompkinsQRS {
       double low = _applyLowPassFilter(signal[i]);
       filtered[i] = _applyHighPassFilter(low);
     }
-    
     print("Сигнал отфильтрован");
+    //return filtered;
     // Дифференцируем
     final List<double> derivated = derivative(filtered, _sampleRate);
     print("Сигнал продиффенренцирован");
