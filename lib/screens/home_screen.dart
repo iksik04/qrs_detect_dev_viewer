@@ -23,8 +23,9 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentStartIndex = 0;
   int _pointsPerScreen = 200;
   double _targetSecondsPerScreen = 10.0;
+  bool _showOriginal = true;
   bool _showTruePeaks = false;
-  bool _showProcessed = true; // вместо _showPredPeaks
+  bool _showProcessed = true;
 
   @override
   void initState() {
@@ -100,6 +101,12 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  void _toggleShowOriginal() {
+    setState(() {
+      _showOriginal = !_showOriginal;
+    });
+  }
+
   void _toggleShowTruePeaks() {
     setState(() {
       _showTruePeaks = !_showTruePeaks;
@@ -170,6 +177,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Row(
           children: [
+            _buildToggleOriginalButton(),
+            const SizedBox(width: 10),
             _buildToggleProcessedButton(),
             const SizedBox(width: 10),
             _buildToggleTruePeaksButton(),
@@ -187,6 +196,44 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ],
+    );
+  }
+
+  Widget _buildToggleOriginalButton() {
+    return GestureDetector(
+      onTap: _toggleShowOriginal,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: _showOriginal
+              ? AppColors.ecgLine.withValues(alpha: 0.2)
+              : Colors.grey.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _showOriginal ? AppColors.ecgLine : Colors.grey,
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              _showOriginal ? Icons.visibility : Icons.visibility_off,
+              color: _showOriginal ? AppColors.ecgLine : Colors.grey,
+              size: 18,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Исходный сигнал',
+              style: TextStyle(
+                fontSize: 14,
+                color: _showOriginal ? AppColors.ecgLine : Colors.grey,
+                fontWeight: _showOriginal ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -228,7 +275,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // Кнопка для обработанного сигнала (переименована)
   Widget _buildToggleProcessedButton() {
     return GestureDetector(
       onTap: _toggleShowProcessed,
@@ -396,11 +442,12 @@ class _HomeScreenState extends State<HomeScreen> {
                       }
                     },
                     child: ECGChart(
-                      key: ValueKey('ecg_chart_${_showTruePeaks}_${_showProcessed}_$_currentStartIndex'),
+                      key: ValueKey('ecg_chart_${_showOriginal}_${_showTruePeaks}_${_showProcessed}_$_currentStartIndex'),
                       data: data,
                       startIndex: _currentStartIndex,
                       pointsPerScreen: _pointsPerScreen,
                       targetSecondsPerScreen: _targetSecondsPerScreen,
+                      showOriginal: _showOriginal,
                       showTruePeaks: _showTruePeaks,
                       showProcessed: _showProcessed,
                     ),

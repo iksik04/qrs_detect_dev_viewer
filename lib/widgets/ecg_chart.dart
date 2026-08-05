@@ -8,8 +8,9 @@ class ECGChart extends StatefulWidget {
   final int startIndex;
   final int pointsPerScreen;
   final double targetSecondsPerScreen;
+  final bool showOriginal;
   final bool showTruePeaks;
-  final bool showProcessed; // вместо showPredPeaks
+  final bool showProcessed;
 
   const ECGChart({
     super.key,
@@ -17,6 +18,7 @@ class ECGChart extends StatefulWidget {
     required this.startIndex,
     required this.pointsPerScreen,
     required this.targetSecondsPerScreen,
+    this.showOriginal = true,
     this.showTruePeaks = false,
     this.showProcessed = true,
   });
@@ -37,18 +39,20 @@ class _ECGChartState extends State<ECGChart> {
     }
 
     // Создаём список кривых
-    final lineBars = <LineChartBarData>[
-      // Основной сигнал
-      LineChartBarData(
-        spots: visibleSpots,
-        isCurved: false,
-        color: AppColors.ecgLine,
-        barWidth: 2,
-        dotData: const FlDotData(show: false),
-      ),
-    ];
+    final lineBars = <LineChartBarData>[];
 
-    // Обработанный сигнал (если включён)
+    if (widget.showOriginal) {
+      lineBars.add(
+        LineChartBarData(
+          spots: visibleSpots,
+          isCurved: false,
+          color: AppColors.ecgLine,
+          barWidth: 2,
+          dotData: const FlDotData(show: false),
+        ),
+      );
+    }
+
     if (widget.showProcessed) {
       final processedSpots = _getProcessedSpots();
       if (processedSpots.isNotEmpty) {
