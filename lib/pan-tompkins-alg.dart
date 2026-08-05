@@ -2,6 +2,7 @@
 //import 'dart:math';
 
 class PanTompkinsQRS {
+
   // Коэффициенты фильтров
   late List<double> _bhp;
   late List<double> _ahp;
@@ -103,9 +104,25 @@ class PanTompkinsQRS {
     
     return y;
   }
+  // Дифференцирование
+  List<double> derivative(List<double> signal, double fs) {
+    List<double> result = List.filled(signal.length, 0.0);
+
+    for (int index = 0; index < signal.length; index++) {
+      result[index] = 0;
+
+      if (index >= 2) result[index] -= signal[index - 2];
+      if (index >= 1) result[index] -= 2 * signal[index - 1];
+      if (index < signal.length - 2) result[index] += 2 * signal[index + 1];
+      if (index < signal.length - 3) result[index] += signal[index + 2];
+
+      result[index] = (result[index] * fs) / 8;
+    }
+    return result;
+  }
 
   /// Основной метод обработки сигнала (экземплярный)
-  List<double> process(List<double> signal, {bool normalize = true}) {
+  List<double> process(List<double> signal) {
     if (signal.isEmpty) return [];
     
     // Пересчитываем коэффициенты (на случай, если частота изменилась)
@@ -120,6 +137,11 @@ class PanTompkinsQRS {
       double low = _applyLowPassFilter(signal[i]);
       filtered[i] = _applyHighPassFilter(low);
     }
-    return filtered;
+    
+    print("Сигнал отфильтрован");
+    // Дифференцируем
+    final List<double> derivated = derivative(filtered, _sampleRate);
+    print("Сигнал продиффенренцирован");
+    return derivated;
   }
 }
