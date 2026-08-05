@@ -9,7 +9,7 @@ class ECGChart extends StatefulWidget {
   final int pointsPerScreen;
   final double targetSecondsPerScreen;
   final bool showTruePeaks;
-  final bool showPredPeaks;
+  final bool showProcessed; // вместо showPredPeaks
 
   const ECGChart({
     super.key,
@@ -18,7 +18,7 @@ class ECGChart extends StatefulWidget {
     required this.pointsPerScreen,
     required this.targetSecondsPerScreen,
     this.showTruePeaks = false,
-    this.showPredPeaks = true,
+    this.showProcessed = true,
   });
 
   @override
@@ -26,7 +26,6 @@ class ECGChart extends StatefulWidget {
 }
 
 class _ECGChartState extends State<ECGChart> {
-
   @override
   Widget build(BuildContext context) {
     final visibleSpots = _getVisibleSpots();
@@ -37,35 +36,46 @@ class _ECGChartState extends State<ECGChart> {
       );
     }
 
-    final truePeaksLines = _getTruePeaks();
-    final predPeaksLines = _getPredPeaks();
+    // Создаём список кривых
+    final lineBars = <LineChartBarData>[
+      // Основной сигнал
+      LineChartBarData(
+        spots: visibleSpots,
+        isCurved: false,
+        color: AppColors.ecgLine,
+        barWidth: 2,
+        dotData: const FlDotData(show: false),
+      ),
+    ];
 
-    // Объединяем все вертикальные линии
-    final allVerticalLines = <VerticalLine>[];
-    if (widget.showTruePeaks) {
-      allVerticalLines.addAll(truePeaksLines);
+    // Обработанный сигнал (если включён)
+    if (widget.showProcessed) {
+      final processedSpots = _getProcessedSpots();
+      if (processedSpots.isNotEmpty) {
+        lineBars.add(
+          LineChartBarData(
+            spots: processedSpots,
+            isCurved: false,
+            color: AppColors.processedLine,
+            barWidth: 1.5,
+            dotData: const FlDotData(show: false),
+          ),
+        );
+      }
     }
-    if (widget.showPredPeaks) {
-      allVerticalLines.addAll(predPeaksLines);
-    }
+
+    // Вертикальные линии для истинных пиков
+    final truePeaksLines = _getTruePeaksLines();
 
     return LineChart(
       LineChartData(
         backgroundColor: AppColors.white,
-        lineBarsData: [
-          LineChartBarData(
-            spots: visibleSpots,
-            isCurved: false,
-            color: AppColors.ecgLine,
-            barWidth: 2,
-            dotData: const FlDotData(show: false),
-          ),
-        ],
+        lineBarsData: lineBars,
         titlesData: _buildTitlesData(),
         gridData: _buildGridData(),
         borderData: _buildBorderData(),
         extraLinesData: ExtraLinesData(
-          verticalLines: allVerticalLines,
+          verticalLines: truePeaksLines,
         ),
         minX: visibleSpots.first.x,
         maxX: visibleSpots.last.x,
@@ -79,19 +89,40 @@ class _ECGChartState extends State<ECGChart> {
   List<FlSpot> _getVisibleSpots() {
     final start = widget.startIndex;
     final end = start + widget.pointsPerScreen;
-    
+
     if (start >= widget.data.spots.length) return [];
-    
+
     return widget.data.spots.sublist(
       start,
       end > widget.data.spots.length ? widget.data.spots.length : end,
     );
   }
 
-  List<VerticalLine> _getTruePeaks() {
+  /// Возвращает точки обработанного сигнала для текущего видимого диапазона
+  List<FlSpot> _getProcessedSpots() {
+    final data = widget.data;
+    if (data.processedSignal.isEmpty || data.spots.isEmpty) return [];
+
+    final start = widget.startIndex;
+    final end = (start + widget.pointsPerScreen).clamp(0, data.spots.length);
+
+    final spots = <FlSpot>[];
+    for (int i = start; i < end; i++) {
+      final x = data.spots[i].x;
+      final y = data.processedSignal[i];
+      if (x.isFinite && y.isFinite) {
+        spots.add(FlSpot(x, y));
+      }
+    }
+    return spots;
+  }
+
+  List<VerticalLine> _getTruePeaksLines() {
+    if (!widget.showTruePeaks) return [];
+
     final start = widget.startIndex;
     final end = start + widget.pointsPerScreen;
-    
+
     return widget.data.truePeaks
         .where((index) => index >= start && index < end)
         .map((index) {
@@ -99,24 +130,6 @@ class _ECGChartState extends State<ECGChart> {
           return VerticalLine(
             x: spot.x,
             color: AppColors.truePeakLine,
-            strokeWidth: 4,
-            dashArray: const [4, 4],
-          );
-        })
-        .toList();
-  }
-
-  List<VerticalLine> _getPredPeaks() {
-    final start = widget.startIndex;
-    final end = start + widget.pointsPerScreen;
-    
-    return widget.data.predPeaks
-        .where((index) => index >= start && index < end)
-        .map((index) {
-          final spot = widget.data.spots[index];
-          return VerticalLine(
-            x: spot.x,
-            color: AppColors.predPeakLine,
             strokeWidth: 4,
             dashArray: const [4, 4],
           );
@@ -136,7 +149,7 @@ class _ECGChartState extends State<ECGChart> {
 
   FlTitlesData _buildTitlesData() {
     final interval = _calculateXInterval();
-    
+
     return FlTitlesData(
       show: true,
       topTitles: const AxisTitles(
@@ -177,9 +190,9 @@ class _ECGChartState extends State<ECGChart> {
   double _calculateXInterval() {
     final visibleSpots = _getVisibleSpots();
     if (visibleSpots.isEmpty) return 1.0;
-    
+
     final timeRange = visibleSpots.last.x - visibleSpots.first.x;
-    
+
     if (timeRange <= 2) {
       return 0.2;
     } else if (timeRange <= 5) {
@@ -229,7 +242,7 @@ class _ECGChartState extends State<ECGChart> {
   Widget _customLeftTextWidget(double value, TitleMeta meta) {
     final min = meta.min;
     final max = meta.max;
-                   
+
     if (value == min || value == max) {
       return const SizedBox.shrink();
     }
@@ -246,7 +259,7 @@ class _ECGChartState extends State<ECGChart> {
   Widget _customBottomTextWidget(double value, TitleMeta meta) {
     final min = meta.min;
     final max = meta.max;
-                   
+
     if (value == min || value == max) {
       return const SizedBox.shrink();
     }

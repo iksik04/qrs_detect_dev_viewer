@@ -19,12 +19,12 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<ECGData>? _futureData;
   String _currentFolder = 'MITDB';
   String _currentNumber = '100';
-  
+
   int _currentStartIndex = 0;
   int _pointsPerScreen = 200;
   double _targetSecondsPerScreen = 10.0;
   bool _showTruePeaks = false;
-  bool _showPredPeaks = true;
+  bool _showProcessed = true; // вместо _showPredPeaks
 
   @override
   void initState() {
@@ -33,18 +33,18 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _loadData(String folder, String number) {
-  setState(() {
-    _currentFolder = folder;
-    _currentNumber = number;
-    _currentStartIndex = 0;
-    _futureData = _ecgService.loadECGData(folder, number);
-  });
-}
+    setState(() {
+      _currentFolder = folder;
+      _currentNumber = number;
+      _currentStartIndex = 0;
+      _futureData = _ecgService.loadECGData(folder, number);
+    });
+  }
 
   int _calculatePointsPerScreen(double containerWidth, List<FlSpot> spots, double targetSecondsPerScreen) {
     if (spots.isEmpty) return 200;
-    
-    final double timeStep = spots.length > 1 ? spots[1].x - spots[0].x : 0.01; 
+
+    final double timeStep = spots.length > 1 ? spots[1].x - spots[0].x : 0.01;
     int pointsByTime = (targetSecondsPerScreen / timeStep).round();
     return pointsByTime > 0 ? pointsByTime : 200;
   }
@@ -75,24 +75,20 @@ class _HomeScreenState extends State<HomeScreen> {
   void _handleScrollZoom(ScrollDirection direction) {
     setState(() {
       if (direction == ScrollDirection.forward) {
-        // Увеличиваем масштаб (уменьшаем targetSecondsPerScreen)
         _targetSecondsPerScreen = (_targetSecondsPerScreen * 0.8).clamp(2.0, 30.0);
       } else {
-        // Уменьшаем масштаб (увеличиваем targetSecondsPerScreen)
         _targetSecondsPerScreen = (_targetSecondsPerScreen * 1.25).clamp(2.0, 30.0);
       }
-      
-      // Пересчитываем количество точек на экране
+
       _futureData?.then((data) {
         if (data.spots.isNotEmpty) {
           final pointsPerScreen = _calculatePointsPerScreen(
-            MediaQuery.of(context).size.width - 40, // учитываем padding
+            MediaQuery.of(context).size.width - 40,
             data.spots,
-            _targetSecondsPerScreen
+            _targetSecondsPerScreen,
           );
           setState(() {
             _pointsPerScreen = pointsPerScreen;
-            // Корректируем текущую позицию, если она выходит за пределы
             final totalPoints = data.spots.length;
             final maxStart = totalPoints - _pointsPerScreen;
             if (_currentStartIndex > maxStart) {
@@ -110,9 +106,9 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _toggleShowPredPeaks() {
+  void _toggleShowProcessed() {
     setState(() {
-      _showPredPeaks = !_showPredPeaks;
+      _showProcessed = !_showProcessed;
     });
   }
 
@@ -174,7 +170,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         Row(
           children: [
-            _buildTogglePredPeaksButton(),
+            _buildToggleProcessedButton(),
             const SizedBox(width: 10),
             _buildToggleTruePeaksButton(),
             const SizedBox(width: 10),
@@ -200,7 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: _showTruePeaks 
+          color: _showTruePeaks
               ? AppColors.truePeakLine.withValues(alpha: 0.2)
               : Colors.grey.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
@@ -232,18 +228,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildTogglePredPeaksButton() {
+  // Кнопка для обработанного сигнала (переименована)
+  Widget _buildToggleProcessedButton() {
     return GestureDetector(
-      onTap: _toggleShowPredPeaks,
+      onTap: _toggleShowProcessed,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: _showPredPeaks 
-              ? AppColors.predPeakLine.withValues(alpha: 0.2)
+          color: _showProcessed
+              ? AppColors.processedLine.withValues(alpha: 0.2)
               : Colors.grey.withValues(alpha: 0.2),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: _showPredPeaks ? AppColors.predPeakLine : Colors.grey,
+            color: _showProcessed ? AppColors.processedLine : Colors.grey,
             width: 1.5,
           ),
         ),
@@ -251,17 +248,17 @@ class _HomeScreenState extends State<HomeScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              _showPredPeaks ? Icons.visibility : Icons.visibility_off,
-              color: _showPredPeaks ? AppColors.predPeakLine : Colors.grey,
+              _showProcessed ? Icons.visibility : Icons.visibility_off,
+              color: _showProcessed ? AppColors.processedLine : Colors.grey,
               size: 18,
             ),
             const SizedBox(width: 6),
             Text(
-              'Предсказанные пики',
+              'Обработанный сигнал',
               style: TextStyle(
                 fontSize: 14,
-                color: _showPredPeaks ? AppColors.predPeakLine : Colors.grey,
-                fontWeight: _showPredPeaks ? FontWeight.w600 : FontWeight.w400,
+                color: _showProcessed ? AppColors.processedLine : Colors.grey,
+                fontWeight: _showProcessed ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
           ],
@@ -269,7 +266,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
+
   Widget _buildPageInfo() {
     return FutureBuilder<ECGData>(
       future: _futureData,
@@ -373,11 +370,11 @@ class _HomeScreenState extends State<HomeScreen> {
         return LayoutBuilder(
           builder: (context, constraints) {
             final pointsPerScreen = _calculatePointsPerScreen(
-              constraints.maxWidth, 
-              data.spots, 
-              _targetSecondsPerScreen
+              constraints.maxWidth,
+              data.spots,
+              _targetSecondsPerScreen,
             );
-            
+
             if (pointsPerScreen != _pointsPerScreen) {
               WidgetsBinding.instance.addPostFrameCallback((_) {
                 setState(() {
@@ -392,21 +389,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Listener(
                     onPointerSignal: (event) {
                       if (event is PointerScrollEvent) {
-                        // Определяем направление прокрутки
-                        final scrollDirection = event.scrollDelta.dy > 0 
-                            ? ScrollDirection.backward 
+                        final scrollDirection = event.scrollDelta.dy > 0
+                            ? ScrollDirection.backward
                             : ScrollDirection.forward;
                         _handleScrollZoom(scrollDirection);
                       }
                     },
                     child: ECGChart(
-                      key: ValueKey('ecg_chart_${_showTruePeaks}_${_showPredPeaks}_$_currentStartIndex'),
+                      key: ValueKey('ecg_chart_${_showTruePeaks}_${_showProcessed}_$_currentStartIndex'),
                       data: data,
                       startIndex: _currentStartIndex,
                       pointsPerScreen: _pointsPerScreen,
                       targetSecondsPerScreen: _targetSecondsPerScreen,
                       showTruePeaks: _showTruePeaks,
-                      showPredPeaks: _showPredPeaks,
+                      showProcessed: _showProcessed,
                     ),
                   ),
                 ),
@@ -421,10 +417,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildScrollBar(int totalPoints, int pointsPerScreen) {
-    final progress = totalPoints > 0 
-        ? _currentStartIndex / totalPoints 
+    final progress = totalPoints > 0
+        ? _currentStartIndex / totalPoints
         : 0;
-    
+
     return Container(
       height: 20,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -461,7 +457,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Добавлен enum для направления прокрутки
 enum ScrollDirection {
   forward,
   backward,
