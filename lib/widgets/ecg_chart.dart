@@ -31,6 +31,16 @@ class _ECGChartState extends State<ECGChart> {
   @override
   Widget build(BuildContext context) {
     final visibleSpots = _getVisibleSpots();
+    final processedSpots = _getProcessedSpots();
+
+    // Объединяем все точки, которые будут отображаться, для вычисления диапазона Y
+    final allSpots = <FlSpot>[];
+    if (widget.showOriginal) {
+      allSpots.addAll(visibleSpots);
+    }
+    if (widget.showProcessed) {
+      allSpots.addAll(processedSpots);
+    }
 
     if (visibleSpots.isEmpty) {
       return const Center(
@@ -53,23 +63,36 @@ class _ECGChartState extends State<ECGChart> {
       );
     }
 
-    if (widget.showProcessed) {
-      final processedSpots = _getProcessedSpots();
-      if (processedSpots.isNotEmpty) {
-        lineBars.add(
-          LineChartBarData(
-            spots: processedSpots,
-            isCurved: false,
-            color: AppColors.processedLine,
-            barWidth: 1.5,
-            dotData: const FlDotData(show: false),
-          ),
-        );
-      }
+    if (widget.showProcessed && processedSpots.isNotEmpty) {
+      lineBars.add(
+        LineChartBarData(
+          spots: processedSpots,
+          isCurved: false,
+          color: AppColors.processedLine,
+          barWidth: 1.5,
+          dotData: const FlDotData(show: false),
+        ),
+      );
     }
 
     // Вертикальные линии для истинных пиков
     final truePeaksLines = _getTruePeaksLines();
+
+    // Вычисляем minY и maxY на основе всех отображаемых точек
+    double minY = 0.0;
+    double maxY = 1.0;
+    if (allSpots.isNotEmpty) {
+      minY = allSpots.map((s) => s.y).reduce((a, b) => a < b ? a : b);
+      maxY = allSpots.map((s) => s.y).reduce((a, b) => a > b ? a : b);
+      // Добавляем небольшой отступ, чтобы точки не обрезались
+      final padding = (maxY - minY) * 0.05;
+      minY -= padding;
+      maxY += padding;
+      if (minY == maxY) {
+        minY -= 0.5;
+        maxY += 0.5;
+      }
+    }
 
     return LineChart(
       LineChartData(
@@ -83,8 +106,8 @@ class _ECGChartState extends State<ECGChart> {
         ),
         minX: visibleSpots.first.x,
         maxX: visibleSpots.last.x,
-        minY: _getMinY(visibleSpots),
-        maxY: _getMaxY(visibleSpots),
+        minY: minY,
+        maxY: maxY,
       ),
       duration: const Duration(milliseconds: 150),
     );
@@ -102,7 +125,6 @@ class _ECGChartState extends State<ECGChart> {
     );
   }
 
-  /// Возвращает точки обработанного сигнала для текущего видимого диапазона
   List<FlSpot> _getProcessedSpots() {
     final data = widget.data;
     if (data.processedSignal.isEmpty || data.spots.isEmpty) return [];
@@ -139,16 +161,6 @@ class _ECGChartState extends State<ECGChart> {
           );
         })
         .toList();
-  }
-
-  double _getMinY(List<FlSpot> spots) {
-    if (spots.isEmpty) return -1;
-    return spots.map((s) => s.y).reduce((a, b) => a < b ? a : b) - 0.05;
-  }
-
-  double _getMaxY(List<FlSpot> spots) {
-    if (spots.isEmpty) return 1;
-    return spots.map((s) => s.y).reduce((a, b) => a > b ? a : b) + 0.05;
   }
 
   FlTitlesData _buildTitlesData() {
