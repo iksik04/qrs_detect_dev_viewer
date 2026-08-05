@@ -1,5 +1,5 @@
 // lib/pan_tompkins_alg.dart
-import 'dart:math';
+//import 'dart:math';
 
 class PanTompkinsQRS {
   // Коэффициенты фильтров
@@ -31,30 +31,30 @@ class PanTompkinsQRS {
   /// Инициализация коэффициентов в зависимости от частоты дискретизации
   void _calculateFilterCoefficients() {
     final int rate = _sampleRate.round();
-
+    // пологса пропускания 5-15 Гц
     if (rate == 125) {
       // ФНЧ (Low-Pass) для 125 Гц
-      _blp = [0.35034638, 0.70069276, 0.35034638];
-      _alp = [-0.22115344, -0.18023207];
+      _blp = [0.0913149, 0.1826298, 0.0913149];
+      _alp = [0.98240579, -0.34766539];
       // ФВЧ (High-Pass) для 125 Гц
-      _bhp = [0.96851735, -1.93703469, 0.96851735];
-      _ahp = [1.93604329, -0.9380261];
+      _bhp = [0.83708919, -1.67417838, 0.83708919];
+      _ahp = [1.64745998, -0.70089678];
     } else if (rate == 250) {
-      _blp = [0.11735104, 0.23470207, 0.11735104];
-      _alp = [0.82523238, -0.29463653];
-      _bhp = [0.98413284, -1.96826569, 0.98413284];
-      _ahp = [1.96801391, -0.96851747];
+      _blp = [0.02785977, 0.05571953, 0.02785977];
+      _alp = [1.47548044, -0.58691951];
+      _bhp = [0.91496914, -1.82993829, 0.91496914];
+      _ahp = [1.82269493, -0.83718165];
     } else if (rate == 360) {
-      _blp = [0.06433216, 0.12866431, 0.06433216];
-      _alp = [1.16557175, -0.42290037];
-      _bhp = [0.98895425, -1.9779085, 0.98895425];
-      _ahp = [1.97778648, -0.97803051];
+      _blp = [0.01440144, 0.02880288, 0.01440144];
+      _alp = [1.63299316, -0.69059892];
+      _bhp = [0.94015696, -1.88031393, 0.94015696];
+      _ahp = [1.87672953, -0.88389833];
     } else {
       // Если частота не поддерживается, используем коэффициенты для 360 Гц по умолчанию
-      _blp = [0.06433216, 0.12866431, 0.06433216];
-      _alp = [1.16557175, -0.42290037];
-      _bhp = [0.98895425, -1.9779085, 0.98895425];
-      _ahp = [1.97778648, -0.97803051];
+      _blp = [0.01440144, 0.02880288, 0.01440144];
+      _alp = [1.63299316, -0.69059892];
+      _bhp = [0.94015696, -1.88031393, 0.94015696];
+      _ahp = [1.87672953, -0.88389833];
     }
   }
 
@@ -104,55 +104,6 @@ class PanTompkinsQRS {
     return y;
   }
 
-  /// Полосовой фильтр (альтернативная реализация)
-  List<double> bandPassFilter(List<double> signal) {
-    if (signal.isEmpty) return [];
-    
-    List<double> sig = List.from(signal);
-    List<double> result = List.filled(signal.length, 0.0);
-
-    // Первый проход
-    for (int index = 0; index < signal.length; index++) {
-      sig[index] = signal[index];
-
-      if (index >= 1) {
-        sig[index] += 2 * sig[index - 1];
-      }
-
-      if (index >= 2) {
-        sig[index] -= sig[index - 2];
-      }
-
-      if (index >= 6) {
-        sig[index] -= 2 * signal[index - 6];
-      }
-
-      if (index >= 12) {
-        sig[index] += signal[index - 12];
-      }
-    }
-
-    result = List.from(sig);
-
-    // Второй проход
-    for (int index = 0; index < signal.length; index++) {
-      result[index] = -1 * sig[index];
-
-      if (index >= 1) {
-        result[index] -= result[index - 1];
-      }
-
-      if (index >= 16) {
-        result[index] += 32 * sig[index - 16];
-      }
-
-      if (index >= 32) {
-        result[index] += sig[index - 32];
-      }
-    }
-    return result;
-  }
-
   /// Основной метод обработки сигнала (экземплярный)
   List<double> process(List<double> signal, {bool normalize = true}) {
     if (signal.isEmpty) return [];
@@ -169,20 +120,6 @@ class PanTompkinsQRS {
       double low = _applyLowPassFilter(signal[i]);
       filtered[i] = _applyHighPassFilter(low);
     }
-
-    // Нормализация (опционально)
-    if (normalize && filtered.isNotEmpty) {
-      double maxAbs = filtered.reduce((a, b) => a.abs() > b.abs() ? a.abs() : b.abs());
-      if (maxAbs != 0) {
-        return filtered.map((v) => v / maxAbs).toList();
-      }
-    }
-
     return filtered;
-  }
-
-  /// Альтернативный метод с использованием bandPassFilter
-  List<double> processWithBandPass(List<double> signal) {
-    return bandPassFilter(signal);
   }
 }
