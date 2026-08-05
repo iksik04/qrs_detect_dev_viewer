@@ -41,10 +41,10 @@ class ECGService {
 
       // Получаем частоту дискретизации
       final sampleRate = await getSampleRate(fullPath);
-
-      // Вычисляем обработанный сигнал с помощью Pan-Tompkins
-      final signalValues = spots.map((s) => s.y).toList();
-      final processed = PanTompkinsQRS.solve(signalValues, sampleRate);
+      final signal = spots.map((spot) => spot.y).toList();
+      
+      final detector = PanTompkinsQRS(sampleRate: sampleRate);
+      final processed = detector.process(signal);
 
       return ECGData(
         spots: spots,
